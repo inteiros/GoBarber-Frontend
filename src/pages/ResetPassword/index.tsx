@@ -3,7 +3,7 @@ import { FiLock } from 'react-icons/fi';
 import { Form } from '@unform/web';
 import { FormHandles } from '@unform/core';
 import * as Yup from 'yup';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 
 import { useToast } from '../../hooks/toast';
 import getValidationErrors from '../../utils/getValidationErrors';
@@ -12,6 +12,7 @@ import Input from '../../components/Input';
 import Button from '../../components/Button';
 import logoImg from '../../assets/logo.svg';
 import { Container, Content, AnimationContainer, Background } from './styles';
+import api from '../../services/api';
 
 interface ResetPasswordFormData {
   password: string;
@@ -24,6 +25,7 @@ const ResetPassword: React.FC = () => {
   const { addToast } = useToast();
 
   const history = useHistory();
+  const location = useLocation();
 
   const handleSubmit = useCallback(
     async (data: ResetPasswordFormData) => {
@@ -32,13 +34,34 @@ const ResetPassword: React.FC = () => {
 
         const schema = Yup.object().shape({
           password: Yup.string().required('Senha obrigatória'),
+          password_confirmation: Yup.string().oneOf(
+            [Yup.ref('password'), null],
+            'Senha não bate com confirmação',
+          ),
         });
 
         await schema.validate(data, {
           abortEarly: false,
         });
 
-        history.push('/signin');
+        const token = location.search.replace('?token=', '');
+
+        if (!token) {
+          addToast({
+            type: 'error',
+            title: 'Erro ao resetar senha',
+            description:
+              'Ocorreu um erro ao resetar sua senha, tente novamente',
+          });
+        }
+
+        await api.post('/password/reset', {
+          password: data.password,
+          password_confirmation: data.password_confirmation,
+          token,
+        });
+
+        history.push('/');
       } catch (err) {
         if (err instanceof Yup.ValidationError) {
           const errors = getValidationErrors(err);
@@ -55,7 +78,7 @@ const ResetPassword: React.FC = () => {
         });
       }
     },
-    [addToast, history],
+    [addToast, history, location.search],
   );
 
   return (
